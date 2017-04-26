@@ -24,15 +24,17 @@
 	long boolorer(long num1, long num2);
 	long boolander(long num1, long num2);
 
-	long int memory[1024];
+	long int memory[1024 * 1024 * 16];
 	long int registers[32];
 	char* instr_array[1000];
-	
+	long int break_pc[1000];
+	int br=0;		
 	//instruction
 	char* instruction_IM;
 	char* instruction_RF1;
 	char* instruction_ALU;
-	
+	int breakval=0;
+	int continueval=0;
 	//PC
 	long int PC_IM = 0, PC_RF1 = 0, PC_ALU = 0, PC_DM = 0;
 	
@@ -53,6 +55,9 @@
 	
 	//LO and HI
 	long int LO = 0, HI = 0;
+
+	//register addresses
+	int regread1 = 0, regread2 = 0;
 	
 	//control signals
 	int regWrite_RF1 = 0, regWrite_ALU = 0, regWrite_DM = 0, regWrite_RF2 = 0;
@@ -65,7 +70,36 @@
 	int Zero_ALU = 0, Zero_DM = 0;
 	int M_RF1 = 0, M_ALU = 0, M_DM = 0;
 	int byte_RF1 = 0, byte_ALU = 0, byte_DM = 0;
+
+	//forwarding path p1
+	int p1_1 = 0, p1_2 = 0;
+	long int p1_1_data = 0, p1_2_data = 0;
+
+	//forwarding path p2
+	int p21_1 = 0, p21_2 = 0;
+	long int p21_1_data = 0, p21_2_data = 0;
+	int p22_1 = 0, p22_2 = 0;
+	long int p22_1_data = 0, p22_2_data = 0;
 	
+	//forwarding path p3
+	int p3 = 0;
+	long int p3_data = 0;
+	
+	int flag = 0;
+	int rflag=0;
+
+	int r1_ALU = 0, r2_ALU = 0;
+	int contains ( long int a)
+	{
+	for ( int k1 = 0; k1 < br ; k1++)
+	{
+	//	printf ("%ld %ld\n",break_pc[k1],a);
+		if ( break_pc[k1]==a)
+			return 1;
+	}
+	return  0;
+	}
+
 %}
 
 %X COMM 
@@ -79,13 +113,16 @@
 
 <COMM><<EOF>> {BEGIN 0;}
 
-.*		{printf("Incorrect input format\n");}
+\n		{q++; /*//12456*/}
+EOF		{q++; /*//12456*/}
+.*		{}
 
 %%
 
 int main(int argc, char *argv[]){
 
 	int *a;
+	char* input1;
 	
 	if(argv[1] == NULL){
 		printf("No input file specified\n");
@@ -123,11 +160,44 @@ int main(int argc, char *argv[]){
 	for(int j = 0 ; j < 1024; j++){
 		memory[j] = 0;
 	}
-	
-	registers[0] = 0;
-	registers[1] = 1;
-	registers[2] = 0;
-	
+xw1:	rflag=0;
+	scanf("%s",input1);
+	if(strcmp(input1, "regdump") == 0){
+		for(int k = 0; k < 16; k++){
+			printf("register %d: %ld\n", k, registers[k]);
+		}
+	}
+	else if(strcmp(input1,"step")==0){goto xw2; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw1;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw1;
+	}
+	else
+	{goto xw1;}
+xw2:	rflag=0;
 	pthread_t IM;
 	pthread_t RF1;
 	pthread_t ALU;
@@ -150,7 +220,59 @@ int main(int argc, char *argv[]){
 	pthread_create(&upd, NULL, &update, (void*)&a);
 	pthread_join(upd, &a6); 
 	i++;
+	if(breakval==1){goto xw4;}
+	if(continueval==1 && !contains(PC_ALU)){printf("hahaha\n");goto xw4;}
+	else if(continueval==1 && contains(PC_ALU)){continueval=0;}
+xw3:	scanf("%s",input1);
+	if(strcmp(input1, "regdump") == 0){
+		for(int k = 0; k < 16; k++){
+			printf("register %d: %ld\n", k, registers[k]);
+		}
+	}
 
+	else if(strcmp(input1,"step")==0){goto xw4; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	
+	}
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw3;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw3;	
+	}
+	else
+	{goto xw3;}
+xw4:	rflag=0;
 	printf("cycle 2\n");
 	pthread_create(&IM, NULL, IM_exec, (void*)&a);
 	pthread_create(&RF1, NULL, RF1_exec, (void*)&a);
@@ -160,7 +282,58 @@ int main(int argc, char *argv[]){
 	pthread_create(&upd, NULL, &update, (void*)&a);
 	pthread_join(upd, &a6);
 	i++;
-		
+	if(breakval==1){goto xw6;}	
+	if(continueval==1 && !contains(PC_ALU)){goto xw6;}
+	else if(continueval==1 && contains(PC_ALU)){continueval=0;}
+xw5:	scanf("%s",input1);
+	if(strcmp(input1, "regdump") == 0){
+		for(int k = 0; k < 16; k++){
+			printf("register %d: %ld\n", k, registers[k]);
+		}
+	}
+	else if(strcmp(input1,"step")==0){goto xw6; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	
+	}
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw5;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw5;	
+	}
+	else
+	{goto xw5;}
+xw6:	rflag=0;
 	printf("cycle 3\n");
 	pthread_create(&IM, NULL, IM_exec, (void*)&a);
 	pthread_create(&RF1, NULL, RF1_exec, (void*)&a);
@@ -172,7 +345,58 @@ int main(int argc, char *argv[]){
 	pthread_create(&upd, NULL, &update, (void*)&a);
 	pthread_join(upd, &a6);
 	i++;
-
+	if(breakval==1){goto xw8;}
+	if(continueval==1 && !contains(PC_ALU)){goto xw8;}
+	else if(continueval==1 && contains(PC_ALU)){continueval=0;}
+xw7:	scanf("%s",input1);
+	if(strcmp(input1, "regdump") == 0){
+		for(int k = 0; k < 16; k++){
+			printf("register %d: %ld\n", k, registers[k]);
+		}
+	}
+	else if(strcmp(input1,"step")==0){goto xw8; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	
+	}
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw7;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw7;
+	}
+	else
+	{goto xw7;}
+xw8:	rflag=0;
 	printf("cycle 4\n");	
 	pthread_create(&IM, NULL, IM_exec, (void*)&a);
 	pthread_create(&RF1, NULL, RF1_exec, (void*)&a);
@@ -186,7 +410,58 @@ int main(int argc, char *argv[]){
 	pthread_create(&upd, NULL, &update, (void*)&a);
 	pthread_join(upd, &a6);
 	i++;
-		
+	if(breakval==1){goto xw10;}	
+	if(continueval==1 && !contains(PC_ALU)){goto xw10;}
+	else if(continueval==1 && contains(PC_ALU)){continueval=0;}	
+xw9:	scanf("%s",input1);
+	if(strcmp(input1, "regdump") == 0){
+		for(int k = 0; k < 16; k++){
+			printf("register %d: %ld\n", k, registers[k]);
+		}
+	}
+	else if(strcmp(input1,"step")==0){goto xw10; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	
+	}
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw9;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw9;
+	}
+	else
+	{goto xw9;}
+xw10:	rflag=0;
 	while(PC_IM < q + 4){
 			
 		printf("cycle %d\n", i);
@@ -205,6 +480,59 @@ int main(int argc, char *argv[]){
 		
 		pthread_create(&upd, NULL, &update, (void*)&a);
 		pthread_join(upd, &a6);
+	if(breakval==1){goto xw12;}
+	if(continueval==1 && !contains(PC_ALU)){goto xw12;}
+	else if(continueval==1 && contains(PC_ALU)){continueval=0;}
+xw11:		scanf("%s",input1);
+		if(strcmp(input1, "regdump") == 0){
+			for(int k = 0; k < 16; k++){
+				printf("register %d: %ld\n", k, registers[k]);
+			}
+		}
+	else if(strcmp(input1,"step")==0){goto xw12; }
+	else if(strcmp(input1,"run")==0){breakval=1; }
+	else if(strcmp(input1,"continue")==0){continueval=1; }
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	
+	}
+	else if (strcmp(input1,"break")==0)
+	{
+	long int rg=0;
+	if (scanf("%ld",&rg)==1)
+	{				
+		if(br<1000)
+		{
+			break_pc[br++]=rg;
+		}				
+	}
+	goto xw11;
+	}
+	else if (strcmp(input,"delete")==0)
+	{
+		long int rg=0;
+		if (scanf("%ld",&rg)==1)
+		{
+			for (int b1 =0 ; b1<br;b1++)
+			{
+				if(break_pc[b1]==rg)
+					break_pc[b1]=0;
+			}
+		}
+	goto xw11;
+	}
+	else
+	{goto xw11;}
+xw12:	rflag=0;
+	//printf("%d",PC_ALU);	
 	}	
 	
 	pthread_exit(NULL);
@@ -237,8 +565,8 @@ void* RF1_exec(void* a){
 	regdst1_RF1 = binar(substri(instruction_RF1, 11, 16), 5);			//Inter-state register for instruction[20-16]
 	regdst2_RF1 = binar(substri(instruction_RF1, 16, 21), 5);			//Inter-state register for instruction[15-11]
 	
-	int regread1 = binar(substri(instruction_RF1, 6, 11), 5);			//Address of the first register
-	int regread2 = binar(substri(instruction_RF1, 11, 16), 5);		//Address of the second register
+	regread1 = binar(substri(instruction_RF1, 6, 11), 5);			//Address of the first register
+	regread2 = binar(substri(instruction_RF1, 11, 16), 5);		//Address of the second register
 	
 	ALUsrc_RF1 = 1;
 	regWrite_RF1 = 1; memToReg_RF1 = 1;												
@@ -249,21 +577,21 @@ void* RF1_exec(void* a){
 	M_RF1 = 0;
 	
 	if(strcmp(substri(instruction_RF1, 0, 6),("001000")) == 0){		//ADDI
-		regDst_RF1 = 1;	
+		regDst_RF1 = 0;	
 	}
 	else if(strcmp(substri(instruction_RF1, 0, 6),("011100")) == 0){	//MADD
 		regWrite_RF1 = 0; memToReg_RF1 = 0;
 	}
 	else if(strcmp(substri(instruction_RF1, 0, 6),("001101")) == 0){	//ORI
-		regDst_RF1 = 1;
+		regDst_RF1 = 0;
 		ALUsrc_RF1 = 1;
 	}
 	else if(strcmp(substri(instruction_RF1, 0, 6),("001111")) == 0){	//LUI
 		regread1 = binar(substri(instruction_RF1, 11, 16), 5);
-		regDst_RF1 = 1;	
+		regDst_RF1 = 0;	
 	}
 	else if(strcmp(substri(instruction_RF1, 0, 6),("001010")) == 0){	//SLTI
-		regDst_RF1 = 1;	
+		regDst_RF1 = 0;	
 	}
 	else if(strcmp(substri(instruction_RF1, 0, 6),("000100")) == 0){	//BEQ
 		regWrite_RF1 = 0; memToReg_RF1 = 0;
@@ -333,16 +661,19 @@ void* RF1_exec(void* a){
 			ALUsrc_RF1 = 0;
 		}
 		else if(strcmp(substri(instruction_RF1, 26, 32),("000000")) == 0){	//SLL
-			regread1 = 0;
+			regread1 = binar(substri(instruction_RF1, 11, 16), 5);
 			immediate_RF1 = binar(substri(instruction_RF1, 21, 26), 5);
 			regDst_RF1 = 1;
-			ALUsrc_RF1 = 0;
+			ALUsrc_RF1 = 1;
 		}
-		else if(strcmp(substri(instruction_RF1, 26, 32),("000100")) == 0){
+		else if(strcmp(substri(instruction_RF1, 26, 32),("000100")) == 0){	//SLLV
+			regread2 = binar(substri(instruction_RF1, 6, 11), 5);			//Address of the first register
+			regread1 = binar(substri(instruction_RF1, 11, 16), 5);		//Address of the second register
 			regDst_RF1 = 1;
 			ALUsrc_RF1 = 0;
 		}
 		else if(strcmp(substri(instruction_RF1, 26, 32),("101011")) == 0){	//SLTU
+			regDst_RF1 = 1;
 			memRead_RF1 = 0;
 			ALUsrc_RF1 = 0;
 		}
@@ -369,7 +700,7 @@ void* RF1_exec(void* a){
 	
 	regread1_RF1 = registers[regread1];									//The data from the first register
 	regread2_RF1 = registers[regread2];									//The data from the second register
-	
+
 	pthread_exit(NULL);
 }
 
@@ -382,12 +713,36 @@ void* ALU_exec(void* a){
 	
 	ALUinput1_ALU = regread1_ALU;
 
-	if(ALUsrc_ALU == 1){					
+	if(ALUsrc_ALU == 1){				
 		ALUinput2_ALU = immediate_ALU;
 	}
 	else{
 		ALUinput2_ALU = regread2_ALU;
 	}
+
+	//printf("in1: %ld, in2: %ld\n", ALUinput1_ALU, ALUinput2_ALU);
+
+	if(p1_1 == 1){
+		ALUinput1_ALU = p1_1_data;
+	}
+	else if(p21_1 == 1){
+		ALUinput1_ALU = p21_1_data;
+	}
+	else if(p22_1 == 1){
+		ALUinput1_ALU = p22_1_data;
+	}
+
+	if(p1_2 == 1){
+		ALUinput2_ALU = p1_2_data;
+	}
+	else if(p21_2 == 1){
+		ALUinput2_ALU = p21_2_data;
+	}
+	else if(p22_2 == 1){
+		ALUinput2_ALU = p22_2_data;
+	}
+
+	//printf("in1: %ld, in2: %ld\n", ALUinput1_ALU, ALUinput2_ALU);
 	
 	if(strcmp(substri(instruction_ALU, 0, 6),"001000")==0){			//ADDI
 		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU;
@@ -416,34 +771,34 @@ void* ALU_exec(void* a){
 	else if(strcmp(substri(instruction_ALU, 0, 6),"000001")==0){		//BGEZ
 		if(ALUinput1_ALU >= 0) Zero_ALU = 1;
 		else Zero_ALU = 0;
-		ALUoutput_ALU = immediate_ALU;
+		ALUoutput_ALU = immediate_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"000111")==0){		//BGTZ
 		if(ALUinput1_ALU > 0) Zero_ALU = 1;
 		else Zero_ALU = 0;
-		ALUoutput_ALU = immediate_ALU;
+		ALUoutput_ALU = immediate_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"000110")==0){		//BLEZ
 		if(ALUinput1_ALU <= 0) Zero_ALU = 1;
 		else Zero_ALU = 0;
-		ALUoutput_ALU = immediate_ALU;
+		ALUoutput_ALU = immediate_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"000001")==0){		//BLTZ
 		if(ALUinput1_ALU < 0) Zero_ALU = 1;
 		else Zero_ALU = 0;
-		ALUoutput_ALU = immediate_ALU;
+		ALUoutput_ALU = immediate_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"100000")==0){		//LB
-		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU;
+		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"100011")==0){		//LW
-		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU;
+		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"101000")==0){		//SB
-		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU;
+		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"101011")==0){		//SW
-		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU;
+		ALUoutput_ALU = ALUinput1_ALU + ALUinput2_ALU - pow(16, 4) - pow(16, 7);
 	}
 	else if(strcmp(substri(instruction_ALU, 0, 6),"000000")==0){	
 		if(strcmp(substri(instruction_ALU, 26, 32),"100000")==0){		//ADD
@@ -468,7 +823,7 @@ void* ALU_exec(void* a){
 			ALUoutput_ALU = boolorer(ALUinput1_ALU, ALUinput2_ALU);
 		}
 		else if(strcmp(substri(instruction_ALU, 26, 32), "000000")==0){	//SLL
-			ALUoutput_ALU = ALUinput1_ALU * pow(2, immediate_ALU);
+			ALUoutput_ALU = ALUinput1_ALU * pow(2, ALUinput2_ALU);
 		}
 		else if(strcmp(substri(instruction_ALU, 26, 32), "000100")==0){	//SLLV
 			regread1_ALU = binar(substri(instruction_ALU, 6, 11), 5);
@@ -478,6 +833,7 @@ void* ALU_exec(void* a){
 		else if(strcmp(substri(instruction_ALU, 26, 32), "101011")==0){	//SLTU
 			if(ALUinput1_ALU < ALUinput2_ALU) ALUoutput_ALU = 1;
 			else ALUoutput_ALU = 0;
+			//printf("%ld: in1, %ld, in2, %ld: out", ALUinput1_ALU, ALUinput2_ALU, ALUoutput_ALU);
 		}
 		else{
 			printf("aleph 3: Instruction not supported\n");
@@ -491,7 +847,7 @@ void* ALU_exec(void* a){
 		exit(-1);
 	}
 		
-	PC_ALU = binar(substri(instruction_ALU, 16, 32), 16);
+	PC_ALU = PC_ALU + binar(substri(instruction_ALU, 16, 32), 16);
 	
 	pthread_exit(NULL);
 }
@@ -506,7 +862,10 @@ void* DM_exec(void* a){
 	}
 	
 	if(memWrite_DM == 1){		//st
-		memory[ALUoutput_DM/4] = registers[regdst_DM];
+		if(p3_data == 1){
+			memory[ALUoutput_DM/4] = p3_data;
+		}
+		else memory[ALUoutput_DM/4] = regread2_DM;
 		if(byte_DM == 1){
 			if(ALUoutput_DM % 4 == 0)
 				memory[ALUoutput_DM/4] = memory[ALUoutput_DM/4] % 256;
@@ -536,7 +895,7 @@ void* DM_exec(void* a){
 			}
 		}
 	}
-	
+
 	pthread_exit(NULL);
 }
 
@@ -555,7 +914,83 @@ void* RF2_exec(void* a){
 }
 
 void* update(void* a){
-	
+
+	p1_1 = 0;
+	p1_2 = 0;
+	if(regWrite_ALU == 1){
+		if(regdst_ALU == regread1){
+			p1_1 = 1;
+			p1_1_data = ALUoutput_ALU;
+		}
+		else p1_1 = 0;
+		if(regdst_ALU == regread2 && ALUsrc_RF1 == 0){
+			p1_2 = 1;
+			p1_2_data = ALUoutput_ALU;
+		}
+		else p1_2 = 0;
+	}
+
+	p21_1 = 0;
+	p21_2 = 0;
+	if(memRead_DM == 1 && flag == 0){
+
+		if(regdst_DM == r1_ALU && regWrite_ALU == 1){
+			p21_1 = 1;
+			p21_1_data = memData_DM;
+			flag = 1;
+		}
+		else p21_1 = 0;
+		if(regdst_ALU == r2_ALU && regWrite_ALU == 1 && ALUsrc_ALU == 0){
+			p21_2 = 1;
+			p21_2_data = memData_DM;
+			flag = 1;
+		}
+		else p21_2 = 0;
+	}
+	if(p1_1 == 0 && p1_2 == 0 && (p21_1 != 0 || p21_2 != 0)){
+		PC_IM = PC_IM - 1;
+		pthread_exit(NULL);
+	}
+	else{
+		flag = 0;
+	}
+
+	p22_1 = 0;
+	p22_2 = 0;
+	if(regWrite_DM == 1){
+		if(regdst_DM == regread1){
+			p22_1 = 1;
+			p22_1_data = memData_DM;
+		}
+		else p22_1 = 0;
+		if(regdst_DM == regread2 && ALUsrc_RF1 == 0){
+			p22_2 = 1;
+			p22_2_data = memData_DM;
+		}
+		else p22_2 = 0;
+	}
+
+	p3 = 0;
+	if(regWrite_DM == 1){
+		if(regread2_DM == regdst_ALU){
+			p3 = 1;
+			p3_data = ALUoutput_ALU;
+		}
+		else p3 = 0;
+	}
+
+	if(regWrite_RF2 == 1){
+		if(regread1 == regdst_RF2){
+			regread1_RF1 = memData_RF2;
+		}
+		if(regread2 == regdst_RF2){
+			regread2_RF1 = memData_RF2;
+		}
+	}
+
+	r1_ALU = regread1;
+	r2_ALU = regread2;
+
 	//instruction
 	instruction_ALU = instruction_RF1;
 	instruction_RF1 = instruction_IM;
@@ -586,6 +1021,7 @@ void* update(void* a){
 	
 	//data from memory
 	memData_RF2 = memData_DM;
+	memData_DM = ALUoutput_ALU;
 	
 	//control signals
 	regWrite_RF2 = regWrite_DM;
@@ -633,9 +1069,27 @@ long int binar(char*x, int n){
 	return t;
 }
 
+long int signed_binar(char*x, int n){ //12456
+	
+	int j=0;
+	int k=0;
+	long int t=0;
+	t-=(x[n-1]-'0')*pow(2,k);
+
+	for( j=n-2;j>=0;j--)
+	{
+		t+=(x[j]-'0')*pow(2,k);
+		k++;
+	}
+	return t;
+}
+
 char* hextobin(char* hex){
-	char* bin=(char*)malloc(64);
+	char* bin=(char*)malloc(64) ;
+	//bin="";
     int i = 0;
+    //     strcat(bin, "0000");
+	//strncat(bin, "0000",4);
  
     for(i=0; i<8; i++)
     {
@@ -751,7 +1205,7 @@ long boolorer(long num1,long num2){
 		x*=2;
 		x+=ander(a1[31-l],a2[31-l]);
 	}
-	x-= ander(a1[31],a2[31])*pow(2,31);
+	x-=ander(a1[31],a2[31])*pow(2,31);
 	return x;
 }
 
@@ -832,7 +1286,7 @@ long boolnoter(long num1){
 		x+=ander(a1[31-l]);
 	}
 	
-	x-= ander(a1[31])*pow(2,31);
+	x-=ander(a1[31])*pow(2,31);
 	
 	return x;
 }
